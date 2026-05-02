@@ -1,0 +1,17 @@
+# Root — ignore both app node_modules and build artifacts
+node_modules/
+dist/
+.next/
+out/
+
+# Environment secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# OS & editor
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.log
+coverage/
