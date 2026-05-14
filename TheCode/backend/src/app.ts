@@ -10,6 +10,7 @@ import { connectMongoDB } from './config/mongodb';
 import { connectRedis } from './config/redis';
 import { initFirebaseAdmin } from './config/firebase';
 import { initSocketIO } from './config/socket';
+import { initExpirationService } from './services/expiration.service';
 
 import authRoutes from './routes/auth.routes';
 import messageRoutes from './routes/message.routes';
@@ -54,6 +55,7 @@ async function bootstrap() {
   await connectRedis();
   initFirebaseAdmin();
   initSocketIO(server);
+  await initExpirationService();
 
   server.listen(PORT, () => {
     console.log(`🚀 Backend running on http://localhost:${PORT}`);
