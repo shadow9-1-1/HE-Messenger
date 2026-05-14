@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import { admin } from './firebase';
+import { verifyToken } from '../middleware/auth.middleware';
 
 let io: SocketIOServer;
 
@@ -20,7 +20,7 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
       if (!token) {
         return next(new Error('Authentication error: No token provided'));
       }
-      const decodedToken = await admin.auth().verifyIdToken(token);
+      const decodedToken = await verifyToken(token);
       socket.data.user = decodedToken;
       next();
     } catch (err) {
