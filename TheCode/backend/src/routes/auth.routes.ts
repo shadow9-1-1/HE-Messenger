@@ -4,8 +4,8 @@ import { User } from '../models/user.model';
 
 const router = Router();
 
-// POST /api/auth/sync — create or update user record after Firebase login
-router.post('/sync', verifyFirebaseToken, async (req: AuthRequest, res: Response) => {
+// POST /api/auth/login — create or update user record after Firebase login
+router.post('/login', verifyFirebaseToken, async (req: AuthRequest, res: Response) => {
   try {
     const { uid, email, name, picture } = req.user!;
 

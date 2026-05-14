@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Sync user record with backend on login
       if (firebaseUser) {
         try {
-          await api.post('/auth/sync');
+          await api.post('/auth/login');
         } catch (err) {
           console.error('Failed to sync user with backend:', err);
         }
