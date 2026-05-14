@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, KeyboardEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
+import { encryptMessage, decryptMessage } from '@/lib/crypto';
 
 interface Message {
   _id: string;
@@ -170,7 +171,8 @@ export default function ChatPage() {
         (msg.senderUid === user?.uid && msg.recipientUid === recipientUid) ||
         (msg.senderUid === recipientUid && msg.recipientUid === user?.uid)
       ) {
-        printLine(`[${msg.senderUid}]: ${msg.content}`, msg.senderUid === user?.uid ? '#0f0' : '#fff');
+        const plaintext = decryptMessage(msg.content, msg.senderUid, msg.recipientUid);
+        printLine(`[${msg.senderUid}]: ${plaintext}`, msg.senderUid === user?.uid ? '#0f0' : '#fff');
       }
     };
 
@@ -222,7 +224,8 @@ export default function ChatPage() {
       }
 
       data.messages.forEach((msg: Message) => {
-        printLine(`[${msg.senderUid}]: ${msg.content}`, msg.senderUid === user?.uid ? '#0f0' : '#fff');
+        const plaintext = decryptMessage(msg.content, msg.senderUid, msg.recipientUid);
+        printLine(`[${msg.senderUid}]: ${plaintext}`, msg.senderUid === user?.uid ? '#0f0' : '#fff');
       });
 
     } catch (err) {
@@ -233,6 +236,7 @@ export default function ChatPage() {
   const sendMessage = async (content: string) => {
     if (!user || !recipientUid) return;
     try {
+      const encryptedContent = encryptMessage(content, user.uid, recipientUid);
       const token = await user.getIdToken();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${apiUrl}/messages`, {
@@ -241,7 +245,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ recipientUid, content }),
+        body: JSON.stringify({ recipientUid, content: encryptedContent }),
       });
       if (!res.ok) throw new Error('Failed to send message');
     } catch (err) {
@@ -265,7 +269,8 @@ export default function ChatPage() {
       }
       
       const data = await res.json();
-      setLines(prev => prev.map(line => line.id === lineId ? { ...line, text: `[${data.message.senderUid}]: ${data.message.content}`, color: '#ff0', isBurn: false } : line));
+      const plaintext = decryptMessage(data.message.content, data.message.senderUid, data.message.recipientUid);
+      setLines(prev => prev.map(line => line.id === lineId ? { ...line, text: `[${data.message.senderUid}]: ${plaintext}`, color: '#ff0', isBurn: false } : line));
     } catch (err) {
       setLines(prev => prev.map(line => line.id === lineId ? { ...line, text: '[BURN MESSAGE ERROR]', color: '#f00', isBurn: false } : line));
     }
@@ -299,12 +304,13 @@ export default function ChatPage() {
           } else {
             const payload = parts.slice(1).join(' ');
             try {
+              const encryptedPayload = encryptMessage(payload, user!.uid, recipientUid);
               const token = await user?.getIdToken();
               const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
               const res = await fetch(`${apiUrl}/messages/burn`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ recipientUid, content: payload }),
+                body: JSON.stringify({ recipientUid, content: encryptedPayload }),
               });
               if (!res.ok) throw new Error();
               printLine(`[SYSTEM]: Burn message dispatched to ${recipientUid}`, '#0ff');
