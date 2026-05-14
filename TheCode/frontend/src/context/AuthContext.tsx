@@ -13,6 +13,7 @@ import api from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
+  backendUser: any | null;
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -20,6 +21,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({ 
   user: null, 
+  backendUser: null,
   loading: true,
   loginWithGoogle: async () => {},
   logout: async () => {}
@@ -27,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [backendUser, setBackendUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loginWithGoogle = async () => {
@@ -44,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await signOut(auth);
+      setBackendUser(null);
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -57,10 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Sync user record with backend on login
       if (firebaseUser) {
         try {
-          await api.post('/auth/login');
+          const res = await api.post('/auth/login');
+          setBackendUser(res.data.user);
         } catch (err) {
           console.error('Failed to sync user with backend:', err);
         }
+      } else {
+        setBackendUser(null);
       }
 
       setLoading(false);
@@ -70,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, backendUser, loading, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
