@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { verifyFirebaseToken, AuthRequest } from '../middleware/auth.middleware';
-import { listPush, listRead, getConversationKey } from '../config/redis';
+import { listPush, listRead, getConversationKey, getExpiration } from '../config/redis';
 import { getIO } from '../config/socket';
 
 const router = Router();
@@ -19,8 +19,9 @@ router.get('/:recipientUid', verifyFirebaseToken, async (req: AuthRequest, res: 
     const conversationKey = getConversationKey(senderUid, recipientUid);
     const rawMessages = await listRead(conversationKey);
     const messages = rawMessages.map(m => JSON.parse(m));
+    const ttl = await getExpiration(conversationKey);
 
-    res.json({ messages });
+    res.json({ messages, ttl });
   } catch (error) {
     console.error('Fetch messages error:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
