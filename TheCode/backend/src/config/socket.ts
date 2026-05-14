@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { verifyToken } from '../middleware/auth.middleware';
 import { trackConnection, trackDisconnection } from './redis';
+import { emitSystemPulse } from '../services/pulse.service';
 
 /**
  * Socket.IO Real-Time Event Documentation
@@ -63,17 +64,16 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
         console.error('Failed to track connection presence:', err);
       }
       
-      // Emit a system pulse to let the frontend know the connection & room binding was successful
-      socket.emit('system_pulse', {
-        type: 'join',
-        message: `Successfully connected and bound to private routing space: ${user.uid}`,
-        timestamp: new Date().toISOString()
-      });
+      // Emit a structured system pulse
+      emitSystemPulse(user.uid, 'SOCKET', `Joined private room`);
     }
 
     socket.on('disconnect', async (reason) => {
       console.log(`🔌 Socket disconnected: ${socket.id} - Reason: ${reason}`);
       if (user?.uid) {
+        // Emit pulse before cleaning up (may reach other open tabs)
+        emitSystemPulse(user.uid, 'SOCKET', `Socket disconnected (${reason})`);
+        
         try {
           const isNewlyOffline = await trackDisconnection(user.uid);
           if (isNewlyOffline) {

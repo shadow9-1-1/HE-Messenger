@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { admin } from '../config/firebase';
+import { emitSystemPulse } from '../services/pulse.service';
 
 export interface AuthRequest extends Request {
   user?: admin.auth.DecodedIdToken;
@@ -26,6 +27,10 @@ export async function verifyFirebaseToken(
   try {
     const decodedToken = await verifyToken(idToken);
     req.user = decodedToken;
+    
+    // Emit system pulse (will only arrive if the user already has a live socket)
+    emitSystemPulse(decodedToken.uid, 'AUTH', 'Token verified securely');
+    
     next();
   } catch (error) {
     res.status(401).json({ error: 'Unauthorized: Invalid token' });

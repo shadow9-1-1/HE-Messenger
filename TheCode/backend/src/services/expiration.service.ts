@@ -1,6 +1,7 @@
 import Redis from 'ioredis';
 import { getRedis } from '../config/redis';
 import { getIO } from '../config/socket';
+import { emitSystemPulse } from './pulse.service';
 
 let subscriber: Redis;
 
@@ -44,6 +45,10 @@ export async function initExpirationService(): Promise<void> {
           const io = getIO();
           io.to(uid1).emit('chat_wiped', { conversationKey: key, counterpartUid: uid2 });
           io.to(uid2).emit('chat_wiped', { conversationKey: key, counterpartUid: uid1 });
+          
+          // Emit internal system pulse
+          emitSystemPulse(uid1, 'GHOST', `TTL reached 0. Redis memory purged for ${key}`);
+          emitSystemPulse(uid2, 'GHOST', `TTL reached 0. Redis memory purged for ${key}`);
           
           console.log(`🧹 Ghost Wipe Triggered: Conversation ${key} expired. Notified connected users.`);
         }

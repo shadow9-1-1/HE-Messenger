@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { verifyFirebaseToken, AuthRequest } from '../middleware/auth.middleware';
 import { listPush, listRead, getConversationKey, getExpiration } from '../config/redis';
 import { getIO } from '../config/socket';
+import { emitSystemPulse } from '../services/pulse.service';
 
 const router = Router();
 
@@ -53,6 +54,11 @@ router.post('/', verifyFirebaseToken, async (req: AuthRequest, res: Response) =>
 
     // Push the message to the Redis list and set/update its TTL
     await listPush(conversationKey, JSON.stringify(message));
+    const currentTtl = await getExpiration(conversationKey);
+
+    // Emit system pulses to both parties
+    emitSystemPulse(senderUid, 'REDIS', `Key updated (TTL: ${currentTtl}s)`);
+    emitSystemPulse(recipientUid, 'REDIS', `Key updated (TTL: ${currentTtl}s)`);
 
     // Emit to recipient via Socket.IO private room (their UID)
     const io = getIO();
