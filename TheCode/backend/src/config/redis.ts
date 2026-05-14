@@ -155,3 +155,40 @@ export async function trackDisconnection(uid: string): Promise<boolean> {
 export async function getOnlineUsers(): Promise<string[]> {
   return await redis.hkeys(PRESENCE_KEY);
 }
+
+// ── MFA Management ───────────────────────────────────────────────────────────
+
+const MFA_VERIFIED_TTL = 60 * 60 * 24; // 24 hours
+const MFA_PENDING_TTL = 60 * 10;       // 10 minutes
+
+/**
+ * Checks if a user has a valid MFA session.
+ */
+export async function isMfaVerified(uid: string): Promise<boolean> {
+  const exists = await redis.exists(`mfa_verified:${uid}`);
+  return exists > 0;
+}
+
+/**
+ * Marks a user as MFA verified for 24 hours.
+ */
+export async function setMfaVerified(uid: string): Promise<void> {
+  await redis.setex(`mfa_verified:${uid}`, MFA_VERIFIED_TTL, 'true');
+  await redis.del(`mfa_pending:${uid}`);
+}
+
+/**
+ * Stores a pending MFA OTP state.
+ */
+export async function setMfaPending(uid: string, otp: string, phone: string): Promise<void> {
+  await redis.setex(`mfa_pending:${uid}`, MFA_PENDING_TTL, JSON.stringify({ otp, phone }));
+}
+
+/**
+ * Retrieves and validates the pending MFA OTP state.
+ */
+export async function getMfaPending(uid: string): Promise<{ otp: string; phone: string } | null> {
+  const data = await redis.get(`mfa_pending:${uid}`);
+  if (!data) return null;
+  return JSON.parse(data);
+}

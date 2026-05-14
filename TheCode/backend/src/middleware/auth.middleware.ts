@@ -33,3 +33,27 @@ export async function verifyFirebaseToken(
     next(new ApiError(401, 'Unauthorized: Invalid token'));
   }
 }
+
+/**
+ * Express middleware to strictly enforce that a valid Firebase user
+ * has ALSO successfully completed the Twilio MFA challenge.
+ * Must be used AFTER verifyFirebaseToken.
+ */
+export const requireMfa = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized: No valid user session');
+    }
+
+    const { isMfaVerified } = await import('../config/redis');
+    const verified = await isMfaVerified(req.user.uid);
+
+    if (!verified) {
+      throw new ApiError(403, 'Forbidden: MFA Required');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

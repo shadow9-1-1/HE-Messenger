@@ -39,6 +39,13 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
         return next(new Error('Authentication error: No token provided'));
       }
       const decodedToken = await verifyToken(token);
+      
+      const { isMfaVerified } = await import('./redis');
+      const verified = await isMfaVerified(decodedToken.uid);
+      if (!verified) {
+        return next(new Error('Authentication error: MFA Required'));
+      }
+
       socket.data.user = decodedToken;
       next();
     } catch (err) {

@@ -15,6 +15,8 @@ interface AuthContextType {
   user: User | null;
   backendUser: any | null;
   loading: boolean;
+  mfaState: 'none' | 'pending' | 'verified';
+  setMfaState: (state: 'none' | 'pending' | 'verified') => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -23,6 +25,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null, 
   backendUser: null,
   loading: true,
+  mfaState: 'none',
+  setMfaState: () => {},
   loginWithGoogle: async () => {},
   logout: async () => {}
 });
@@ -30,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [backendUser, setBackendUser] = useState<any | null>(null);
+  const [mfaState, setMfaState] = useState<'none' | 'pending' | 'verified'>('none');
   const [loading, setLoading] = useState(true);
 
   const loginWithGoogle = async () => {
@@ -48,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signOut(auth);
       setBackendUser(null);
+      setMfaState('none');
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -62,9 +68,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (firebaseUser) {
         try {
           const res = await api.post('/auth/login');
-          setBackendUser(res.data.user);
-        } catch (err) {
-          console.error('Failed to sync user with backend:', err);
+          if (res.data.status === 'PENDING_MFA') {
+            setMfaState('pending');
+          } else if (res.data.status === 'SUCCESS') {
+            setMfaState('verified');
+            setBackendUser(res.data.user);
+          }
+        } catch (err: any) {
+          if (err.response?.status === 403 && err.response?.data?.status === 'PENDING_MFA') {
+            setMfaState('pending');
+          } else {
+            console.error('Failed to sync user with backend:', err);
+          }
         }
       } else {
         setBackendUser(null);
@@ -77,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, backendUser, loading, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, backendUser, loading, mfaState, setMfaState, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

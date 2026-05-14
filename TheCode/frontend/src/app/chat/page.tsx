@@ -27,8 +27,13 @@ interface UserProfile {
 }
 
 export default function ChatPage() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, mfaState, setMfaState } = useAuth();
   const router = useRouter();
+
+  const [mfaPhone, setMfaPhone] = useState('');
+  const [mfaOtp, setMfaOtp] = useState('');
+  const [mfaStep, setMfaStep] = useState<'phone' | 'otp'>('phone');
+  const [mfaError, setMfaError] = useState('');
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [lines, setLines] = useState<{ id: string; text: string; color?: string; isBurn?: boolean; burnId?: string }[]>([]);
@@ -85,6 +90,10 @@ export default function ChatPage() {
     if (!user) {
       router.push('/login');
       return;
+    }
+    
+    if (mfaState === 'pending') {
+      return; // Do not initialize socket or fetch contacts until MFA passes
     }
 
     printLine(`Authenticating as ${user.uid}...`, '#888');
@@ -160,7 +169,7 @@ export default function ChatPage() {
         return null;
       });
     };
-  }, [user, loading, router]);
+  }, [user, loading, router, mfaState]);
 
   // Setup Chat specific socket listeners that depend on recipientUid
   useEffect(() => {
@@ -362,6 +371,92 @@ export default function ChatPage() {
     return (
       <div style={{ backgroundColor: '#000', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p style={{ color: '#0f0', fontFamily: 'monospace' }}>Booting terminal...</p>
+      </div>
+    );
+  }
+
+  if (mfaState === 'pending') {
+    return (
+      <div style={{ backgroundColor: '#000', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f0', fontFamily: 'monospace' }}>
+        <div style={{ border: '1px solid #333', padding: '2rem', maxWidth: '400px', width: '100%' }}>
+          <h2 style={{ color: '#f00', marginBottom: '1rem' }}>[SYSTEM]: MFA REQUIRED</h2>
+          <p style={{ color: '#888', marginBottom: '1.5rem' }}>Your identity must be verified before proceeding.</p>
+          
+          {mfaError && <p style={{ color: '#f00', marginBottom: '1rem' }}>{mfaError}</p>}
+          
+          {mfaStep === 'phone' ? (
+            <div>
+              <p style={{ marginBottom: '0.5rem' }}>Enter Phone Number (e.g. +1234567890):</p>
+              <input
+                type="text"
+                value={mfaPhone}
+                onChange={(e) => setMfaPhone(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', backgroundColor: '#111', border: '1px solid #333', color: '#0f0', marginBottom: '1rem' }}
+                autoFocus
+              />
+              <button 
+                onClick={async () => {
+                  try {
+                    setMfaError('');
+                    const token = await user.getIdToken();
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                    const res = await fetch(`${apiUrl}/auth/mfa/request`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ phone: mfaPhone })
+                    });
+                    if (!res.ok) throw new Error('Failed to request MFA');
+                    setMfaStep('otp');
+                  } catch (err) {
+                    setMfaError('Failed to dispatch SMS. Check format.');
+                  }
+                }}
+                style={{ width: '100%', padding: '0.5rem', backgroundColor: '#333', color: '#fff', border: 'none', cursor: 'pointer' }}
+              >
+                DISPATCH SMS
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p style={{ marginBottom: '0.5rem' }}>Enter 6-Digit Code:</p>
+              <input
+                type="text"
+                value={mfaOtp}
+                onChange={(e) => setMfaOtp(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', backgroundColor: '#111', border: '1px solid #333', color: '#0f0', marginBottom: '1rem' }}
+                autoFocus
+              />
+              <button 
+                onClick={async () => {
+                  try {
+                    setMfaError('');
+                    const token = await user.getIdToken();
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                    const res = await fetch(`${apiUrl}/auth/mfa/verify`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ code: mfaOtp })
+                    });
+                    if (!res.ok) throw new Error('Invalid code');
+                    setMfaState('verified');
+                  } catch (err) {
+                    setMfaError('Invalid OTP code. Access Denied.');
+                  }
+                }}
+                style={{ width: '100%', padding: '0.5rem', backgroundColor: '#333', color: '#fff', border: 'none', cursor: 'pointer' }}
+              >
+                VERIFY
+              </button>
+            </div>
+          )}
+          
+          <button 
+            onClick={logout}
+            style={{ width: '100%', padding: '0.5rem', backgroundColor: 'transparent', color: '#888', border: '1px solid #333', cursor: 'pointer', marginTop: '1rem' }}
+          >
+            ABORT MISSION
+          </button>
+        </div>
       </div>
     );
   }

@@ -1,11 +1,11 @@
 import { Router, Response, NextFunction } from 'express';
-import { verifyFirebaseToken, AuthRequest } from '../middleware/auth.middleware';
+import { verifyFirebaseToken, requireMfa, AuthRequest } from '../middleware/auth.middleware';
 import { User } from '../models/user.model';
 
 const router = Router();
 
 // GET /api/users — fetch list of all registered users
-router.get('/', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/', verifyFirebaseToken, requireMfa, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const currentUid = req.user!.uid;
     // Fetch all users except the currently authenticated one

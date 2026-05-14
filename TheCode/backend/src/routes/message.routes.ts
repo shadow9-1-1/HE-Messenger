@@ -1,5 +1,5 @@
 import { Router, Response, NextFunction } from 'express';
-import { verifyFirebaseToken, AuthRequest } from '../middleware/auth.middleware';
+import { verifyFirebaseToken, requireMfa, AuthRequest } from '../middleware/auth.middleware';
 import { listPush, listRead, getConversationKey, getExpiration, createBurnMessage, consumeBurnMessage } from '../config/redis';
 import { getIO } from '../config/socket';
 import { emitSystemPulse } from '../services/pulse.service';
@@ -8,7 +8,7 @@ import { ApiError } from '../middleware/error.middleware';
 const router = Router();
 
 // GET /api/messages/:recipientUid — fetch messages for a private conversation
-router.get('/:recipientUid', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/:recipientUid', verifyFirebaseToken, requireMfa, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { recipientUid } = req.params;
     const senderUid = req.user!.uid;
@@ -29,7 +29,7 @@ router.get('/:recipientUid', verifyFirebaseToken, async (req: AuthRequest, res: 
 });
 
 // POST /api/messages — send a message
-router.post('/', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', verifyFirebaseToken, requireMfa, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { recipientUid, content, type: messageType = 'text' } = req.body;
     const senderUid = req.user!.uid;
@@ -76,7 +76,7 @@ router.post('/', verifyFirebaseToken, async (req: AuthRequest, res: Response, ne
 });
 
 // POST /api/messages/burn — create a read-once message
-router.post('/burn', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/burn', verifyFirebaseToken, requireMfa, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { recipientUid, content } = req.body;
     const senderUid = req.user!.uid;
@@ -119,7 +119,7 @@ router.post('/burn', verifyFirebaseToken, async (req: AuthRequest, res: Response
 });
 
 // GET /api/messages/burn/:burnId — consume a read-once message
-router.get('/burn/:burnId', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/burn/:burnId', verifyFirebaseToken, requireMfa, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { burnId } = req.params;
     
