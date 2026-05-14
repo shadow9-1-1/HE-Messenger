@@ -1,20 +1,20 @@
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { verifyFirebaseToken, AuthRequest } from '../middleware/auth.middleware';
 import { listPush, listRead, getConversationKey, getExpiration } from '../config/redis';
 import { getIO } from '../config/socket';
 import { emitSystemPulse } from '../services/pulse.service';
+import { ApiError } from '../middleware/error.middleware';
 
 const router = Router();
 
 // GET /api/messages/:recipientUid — fetch messages for a private conversation
-router.get('/:recipientUid', verifyFirebaseToken, async (req: AuthRequest, res: Response) => {
+router.get('/:recipientUid', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { recipientUid } = req.params;
     const senderUid = req.user!.uid;
 
-    if (!recipientUid) {
-      res.status(400).json({ error: 'recipientUid is required' });
-      return;
+    if (!recipientUid || typeof recipientUid !== 'string' || !recipientUid.trim()) {
+      throw new ApiError(400, 'Invalid request parameters', { recipientUid: 'recipientUid must be a non-empty string' });
     }
 
     const conversationKey = getConversationKey(senderUid, recipientUid);
@@ -24,20 +24,22 @@ router.get('/:recipientUid', verifyFirebaseToken, async (req: AuthRequest, res: 
 
     res.json({ messages, ttl });
   } catch (error) {
-    console.error('Fetch messages error:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    next(error);
   }
 });
 
 // POST /api/messages — send a message
-router.post('/', verifyFirebaseToken, async (req: AuthRequest, res: Response) => {
+router.post('/', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { recipientUid, content, type: messageType = 'text' } = req.body;
     const senderUid = req.user!.uid;
 
-    if (!recipientUid || !content) {
-      res.status(400).json({ error: 'recipientUid and content are required' });
-      return;
+    if (!recipientUid || typeof recipientUid !== 'string' || !recipientUid.trim()) {
+      throw new ApiError(400, 'Invalid request body', { recipientUid: 'recipientUid must be a non-empty string' });
+    }
+
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      throw new ApiError(400, 'Invalid request body', { content: 'content must be a non-empty string' });
     }
 
     const conversationKey = getConversationKey(senderUid, recipientUid);
@@ -69,8 +71,7 @@ router.post('/', verifyFirebaseToken, async (req: AuthRequest, res: Response) =>
 
     res.status(201).json({ message });
   } catch (error) {
-    console.error('Send message error:', error);
-    res.status(500).json({ error: 'Failed to send message' });
+    next(error);
   }
 });
 

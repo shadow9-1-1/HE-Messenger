@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { admin } from '../config/firebase';
 import { emitSystemPulse } from '../services/pulse.service';
+import { ApiError } from './error.middleware';
 
 export interface AuthRequest extends Request {
   user?: admin.auth.DecodedIdToken;
@@ -18,8 +19,7 @@ export async function verifyFirebaseToken(
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Unauthorized: No token provided' });
-    return;
+    return next(new ApiError(401, 'Unauthorized: No token provided'));
   }
 
   const idToken = authHeader.split('Bearer ')[1];
@@ -33,6 +33,6 @@ export async function verifyFirebaseToken(
     
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    next(new ApiError(401, 'Unauthorized: Invalid token'));
   }
 }

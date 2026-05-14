@@ -17,6 +17,7 @@ import messageRoutes from './routes/message.routes';
 import roomRoutes from './routes/room.routes';
 import presenceRoutes from './routes/presence.routes';
 import userRoutes from './routes/user.routes';
+import { errorHandler } from './middleware/error.middleware';
 
 dotenv.config();
 
@@ -67,5 +68,8 @@ async function bootstrap() {
 }
 
 bootstrap().catch(console.error);
+
+// ── Global Error Handler ───────────────────────────────────────────
+app.use(errorHandler);
 
 export { app, server };
