@@ -11,7 +11,7 @@ router.post('/sync', verifyFirebaseToken, async (req: AuthRequest, res: Response
 
     const user = await User.findOneAndUpdate(
       { uid },
-      { uid, email, displayName: name || email, photoURL: picture, lastSeen: new Date() },
+      { uid, email, displayName: name || email || 'Unknown', photoURL: picture },
       { upsert: true, new: true },
     );
 
