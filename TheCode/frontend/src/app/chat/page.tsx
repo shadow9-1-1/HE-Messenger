@@ -267,29 +267,11 @@ export default function ChatPage() {
 
   return (
     <div
-      style={{
-        backgroundColor: '#050505',
-        color: '#0f0',
-        fontFamily: "'Courier New', Courier, monospace",
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'row', // Split pane layout
-        boxSizing: 'border-box',
-        overflow: 'hidden',
-      }}
+      className="terminal-layout"
       onClick={() => inputRef.current?.focus()}
     >
       {/* Ghost Chat Pane (Left) */}
-      <div
-        style={{
-          flex: 7,
-          display: 'flex',
-          flexDirection: 'column',
-          borderRight: '2px solid #333',
-          padding: '1rem',
-          height: '100%',
-        }}
-      >
+      <div className="ghost-pane">
         <div style={{ borderBottom: '1px solid #333', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
           <span>HE-OS v1.0.0 [Terminal Mode]</span>
           <span>{recipientUid ? `[CONNECTED: ${recipientUid}]` : '[STANDBY]'}</span>
@@ -330,16 +312,7 @@ export default function ChatPage() {
       </div>
 
       {/* System Pulse Monitor Pane (Right) */}
-      <div
-        style={{
-          flex: 3,
-          backgroundColor: '#0a0a0a',
-          padding: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-        }}
-      >
+      <div className="pulse-pane">
         <div style={{ borderBottom: '1px solid #333', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#888', fontWeight: 'bold' }}>
           <span>/// SYSTEM PULSE MONITOR</span>
         </div>
