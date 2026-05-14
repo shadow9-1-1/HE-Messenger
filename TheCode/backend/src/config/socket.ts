@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { verifyToken } from '../middleware/auth.middleware';
+import { trackConnection, trackDisconnection } from './redis';
 
 /**
  * Socket.IO Real-Time Event Documentation
@@ -10,6 +11,7 @@ import { verifyToken } from '../middleware/auth.middleware';
  * - `receive_message`: Emitted when a new private message is received. Payload contains the message object.
  * - `chat_wiped`: Emitted when a conversation's Redis TTL expires. Payload contains { conversationKey, counterpartUid }.
  * - `system_pulse`: Emitted for system-level diagnostic logs (e.g., successful private room join).
+ * - `presence_update`: Emitted globally when a user comes online or goes offline. Payload: { uid, status: 'online' | 'offline' }.
  * 
  * Architecture:
  * - Clients automatically join a private room matching their Firebase `uid` upon connection.
@@ -43,13 +45,23 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
     }
   });
 
-  io.on('connection', (socket: Socket) => {
+  io.on('connection', async (socket: Socket) => {
     const user = socket.data.user;
     console.log(`🔌 Socket connected: ${socket.id} (User: ${user?.uid})`);
     
     // Automatically join a private room matching the user's UID for 1-on-1 messaging
     if (user?.uid) {
       socket.join(user.uid);
+      
+      // Track presence in Redis
+      try {
+        const isNewlyOnline = await trackConnection(user.uid);
+        if (isNewlyOnline) {
+          io.emit('presence_update', { uid: user.uid, status: 'online' });
+        }
+      } catch (err) {
+        console.error('Failed to track connection presence:', err);
+      }
       
       // Emit a system pulse to let the frontend know the connection & room binding was successful
       socket.emit('system_pulse', {
@@ -59,8 +71,18 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
       });
     }
 
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', async (reason) => {
       console.log(`🔌 Socket disconnected: ${socket.id} - Reason: ${reason}`);
+      if (user?.uid) {
+        try {
+          const isNewlyOffline = await trackDisconnection(user.uid);
+          if (isNewlyOffline) {
+            io.emit('presence_update', { uid: user.uid, status: 'offline' });
+          }
+        } catch (err) {
+          console.error('Failed to track disconnection presence:', err);
+        }
+      }
     });
   });
 

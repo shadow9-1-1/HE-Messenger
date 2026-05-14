@@ -94,3 +94,37 @@ export function getConversationKey(uid1: string, uid2: string): string {
   const [sortedUid1, sortedUid2] = [uid1, uid2].sort();
   return `chat:${sortedUid1}_${sortedUid2}`;
 }
+
+// ── Presence Management ──────────────────────────────────────────────────────
+
+const PRESENCE_KEY = 'online_users';
+
+/**
+ * Tracks a new socket connection for a user.
+ * @returns true if the user transitioned from offline to online.
+ */
+export async function trackConnection(uid: string): Promise<boolean> {
+  const count = await redis.hincrby(PRESENCE_KEY, uid, 1);
+  return count === 1;
+}
+
+/**
+ * Tracks a socket disconnection for a user.
+ * Removes the user from presence state if count drops to 0.
+ * @returns true if the user transitioned from online to offline.
+ */
+export async function trackDisconnection(uid: string): Promise<boolean> {
+  const count = await redis.hincrby(PRESENCE_KEY, uid, -1);
+  if (count <= 0) {
+    await redis.hdel(PRESENCE_KEY, uid);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Retrieves the list of currently online UIDs.
+ */
+export async function getOnlineUsers(): Promise<string[]> {
+  return await redis.hkeys(PRESENCE_KEY);
+}
