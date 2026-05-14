@@ -2,6 +2,20 @@ import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { verifyToken } from '../middleware/auth.middleware';
 
+/**
+ * Socket.IO Real-Time Event Documentation
+ * ---------------------------------------
+ * 
+ * Server-to-Client Events:
+ * - `receive_message`: Emitted when a new private message is received. Payload contains the message object.
+ * - `chat_wiped`: Emitted when a conversation's Redis TTL expires. Payload contains { conversationKey, counterpartUid }.
+ * 
+ * Architecture:
+ * - Clients automatically join a private room matching their Firebase `uid` upon connection.
+ * - All message sending is handled via the REST API (`POST /api/messages`) to ensure strict validation,
+ *   Redis persistence, and TTL refreshing before emitting via Socket.IO.
+ */
+
 let io: SocketIOServer;
 
 export function initSocketIO(server: HttpServer): SocketIOServer {
@@ -32,24 +46,10 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
     const user = socket.data.user;
     console.log(`🔌 Socket connected: ${socket.id} (User: ${user?.uid})`);
     
-    // Automatically join a private room matching the user's UID
+    // Automatically join a private room matching the user's UID for 1-on-1 messaging
     if (user?.uid) {
       socket.join(user.uid);
     }
-
-    socket.on('join_room', (roomId: string) => {
-      socket.join(roomId);
-      console.log(`  ↳ ${socket.id} joined room ${roomId}`);
-    });
-
-    socket.on('leave_room', (roomId: string) => {
-      socket.leave(roomId);
-    });
-
-    socket.on('send_message', (data: { roomId: string; message: unknown }) => {
-      // In a real app, you might want to verify if the user is in the room
-      socket.to(data.roomId).emit('receive_message', data.message);
-    });
 
     socket.on('disconnect', () => {
       console.log(`🔌 Socket disconnected: ${socket.id}`);
