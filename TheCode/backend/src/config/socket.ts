@@ -9,6 +9,7 @@ import { verifyToken } from '../middleware/auth.middleware';
  * Server-to-Client Events:
  * - `receive_message`: Emitted when a new private message is received. Payload contains the message object.
  * - `chat_wiped`: Emitted when a conversation's Redis TTL expires. Payload contains { conversationKey, counterpartUid }.
+ * - `system_pulse`: Emitted for system-level diagnostic logs (e.g., successful private room join).
  * 
  * Architecture:
  * - Clients automatically join a private room matching their Firebase `uid` upon connection.
@@ -49,10 +50,17 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
     // Automatically join a private room matching the user's UID for 1-on-1 messaging
     if (user?.uid) {
       socket.join(user.uid);
+      
+      // Emit a system pulse to let the frontend know the connection & room binding was successful
+      socket.emit('system_pulse', {
+        type: 'join',
+        message: `Successfully connected and bound to private routing space: ${user.uid}`,
+        timestamp: new Date().toISOString()
+      });
     }
 
-    socket.on('disconnect', () => {
-      console.log(`🔌 Socket disconnected: ${socket.id}`);
+    socket.on('disconnect', (reason) => {
+      console.log(`🔌 Socket disconnected: ${socket.id} - Reason: ${reason}`);
     });
   });
 
