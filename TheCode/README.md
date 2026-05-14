@@ -89,6 +89,28 @@ Copy the template: `cd frontend && cp .env.example .env.local`
 
 ---
 
+## 🧪 Evaluator QA: Ghost Wipe Test Flow
+
+The core requirement of this assignment is to verify that conversations permanently vanish across the network when the Redis TTL expires. 
+
+We have set the default `CONVERSATION_TTL_SECONDS=15` in the `.env.example` specifically to make this fast and easy to evaluate.
+
+### Test Steps
+1. **Ensure Keyspace Notifications are active**: Your Redis server *must* have expiration events enabled. 
+   Run: `redis-cli config set notify-keyspace-events Ex`
+2. **Start the Frontend & Backend**: Run both instances locally.
+3. **Open Two Browsers**: Open `http://localhost:3000` in a standard window and an Incognito window. Log into two different Google accounts.
+4. **Connect the Chat**: In Browser A, click Browser B's username in the left Directory pane. Do the same in Browser B.
+5. **Send a Message**: Type "This is a highly classified secret." and hit enter.
+6. **Observe the Pulse Monitor**: On the right pane, you will instantly see: `[REDIS] Key created/updated (TTL: 15s)`.
+7. **Wait 15 Seconds**: Do not send any more messages. Watch the Pulse Monitor.
+8. **Verify the Purge**:
+   - Exactly at 15 seconds, Redis will fire the keyspace expiration notification.
+   - You will see a new Pulse event: `[GHOST] TTL reached 0. Redis memory purged...`
+   - Simultaneously, **both** browser windows will instantly clear their middle chat panes, erasing all evidence of the conversation.
+
+---
+
 ## 🚀 Local Run Instructions
 
 ### Prerequisites
