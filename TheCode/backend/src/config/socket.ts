@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
+import { admin } from './firebase';
 
 let io: SocketIOServer;
 
@@ -12,8 +13,24 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
     },
   });
 
+  // Middleware to authenticate socket connections via Firebase ID token
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth.token;
+      if (!token) {
+        return next(new Error('Authentication error: No token provided'));
+      }
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      socket.data.user = decodedToken;
+      next();
+    } catch (err) {
+      return next(new Error('Authentication error: Invalid token'));
+    }
+  });
+
   io.on('connection', (socket: Socket) => {
-    console.log(`🔌 Socket connected: ${socket.id}`);
+    const user = socket.data.user;
+    console.log(`🔌 Socket connected: ${socket.id} (User: ${user?.uid})`);
 
     socket.on('join_room', (roomId: string) => {
       socket.join(roomId);
@@ -25,6 +42,7 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
     });
 
     socket.on('send_message', (data: { roomId: string; message: unknown }) => {
+      // In a real app, you might want to verify if the user is in the room
       socket.to(data.roomId).emit('receive_message', data.message);
     });
 
