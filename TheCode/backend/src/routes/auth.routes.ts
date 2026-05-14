@@ -56,15 +56,16 @@ router.get('/me', verifyFirebaseToken, async (req: AuthRequest, res: Response, n
   }
 });
 
-// POST /api/auth/mfa/request
-router.post('/mfa/request', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
+// POST /api/auth/mfa/start
+router.post('/mfa/start', verifyFirebaseToken, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { phone } = req.body;
     if (!phone) throw new ApiError(400, 'Phone number required');
 
     const uid = req.user!.uid;
     
-    emitSystemPulse(uid, 'AUTH', `MFA Request initiated for ${phone}`);
+    emitSystemPulse(uid, 'AUTH', `challenge dispatched`);
+    emitSystemPulse(uid, 'AUTH', `awaiting verification`);
 
     if (twilioClient && process.env.TWILIO_VERIFY_SERVICE_SID) {
       await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SERVICE_SID)
@@ -75,7 +76,6 @@ router.post('/mfa/request', verifyFirebaseToken, async (req: AuthRequest, res: R
       const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
       console.log(`\n\n\n=== 🚨 MOCK OTP FOR ${phone}: ${mockOtp} ===\n\n\n`);
       await setMfaPending(uid, mockOtp, phone);
-      emitSystemPulse(uid, 'AUTH', 'Twilio missing. Sent mock OTP to server console.');
     }
 
     res.json({ status: 'PENDING' });
@@ -112,7 +112,7 @@ router.post('/mfa/verify', verifyFirebaseToken, async (req: AuthRequest, res: Re
     }
 
     await setMfaVerified(uid);
-    emitSystemPulse(uid, 'AUTH', 'MFA Challenge PASSED. Identity confirmed.');
+    emitSystemPulse(uid, 'AUTH', 'code verified');
 
     // Sync user now that they are verified
     const { email, name, picture } = req.user!;

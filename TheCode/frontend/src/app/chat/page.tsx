@@ -400,7 +400,7 @@ export default function ChatPage() {
                     setMfaError('');
                     const token = await user.getIdToken();
                     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-                    const res = await fetch(`${apiUrl}/auth/mfa/request`, {
+                    const res = await fetch(`${apiUrl}/auth/mfa/start`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify({ phone: mfaPhone })

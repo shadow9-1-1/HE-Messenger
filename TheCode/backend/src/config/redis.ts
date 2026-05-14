@@ -159,7 +159,7 @@ export async function getOnlineUsers(): Promise<string[]> {
 // ── MFA Management ───────────────────────────────────────────────────────────
 
 const MFA_VERIFIED_TTL = 60 * 60 * 24; // 24 hours
-const MFA_PENDING_TTL = 60 * 10;       // 10 minutes
+const MFA_PENDING_TTL = 60 * 5;        // 5 minutes
 
 /**
  * Checks if a user has a valid MFA session.
