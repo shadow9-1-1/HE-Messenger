@@ -95,6 +95,33 @@ export function getConversationKey(uid1: string, uid2: string): string {
   return `chat:${sortedUid1}_${sortedUid2}`;
 }
 
+// ── Read-Once Burn Messages ──────────────────────────────────────────────────
+
+/**
+ * Creates a standalone read-once burn message.
+ */
+export async function createBurnMessage(burnId: string, payload: string): Promise<void> {
+  const ttl = getDefaultTTL();
+  await redis.setex(`burn:${burnId}`, ttl, payload);
+}
+
+/**
+ * Atomically consumes a burn message using MULTI/EXEC.
+ * Returns the payload if it existed, otherwise null.
+ */
+export async function consumeBurnMessage(burnId: string): Promise<string | null> {
+  const key = `burn:${burnId}`;
+  const results = await redis.multi().get(key).del(key).exec();
+  
+  if (!results) return null;
+  
+  const [getRes, delRes] = results;
+  if (getRes[0]) throw getRes[0]; // Error from GET
+  if (delRes[0]) throw delRes[0]; // Error from DEL
+  
+  return getRes[1] as string | null;
+}
+
 // ── Presence Management ──────────────────────────────────────────────────────
 
 const PRESENCE_KEY = 'online_users';

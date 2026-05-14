@@ -30,7 +30,7 @@ export default function ChatPage() {
   const router = useRouter();
 
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [lines, setLines] = useState<{ id: string; text: string; color?: string }[]>([]);
+  const [lines, setLines] = useState<{ id: string; text: string; color?: string; isBurn?: boolean; burnId?: string }[]>([]);
   const [pulseLogs, setPulseLogs] = useState<{ id: string; category: string; text: string; color: string }[]>([]);
   const [contacts, setContacts] = useState<UserProfile[]>([]);
   const [onlineUids, setOnlineUids] = useState<Set<string>>(new Set());
@@ -65,8 +65,8 @@ export default function ChatPage() {
     return () => document.removeEventListener('click', handleGlobalClick);
   }, []);
 
-  const printLine = (text: string, color: string = '#0f0') => {
-    setLines((prev) => [...prev, { id: Math.random().toString(36).substr(2, 9), text, color }]);
+  const printLine = (text: string, color: string = '#0f0', isBurn?: boolean, burnId?: string) => {
+    setLines((prev) => [...prev, { id: Math.random().toString(36).substr(2, 9), text, color, isBurn, burnId }]);
   };
 
   const printPulse = (category: string, text: string, color: string = '#888') => {
@@ -184,12 +184,21 @@ export default function ChatPage() {
       }
     };
 
+    const handleReceiveBurnNotice = (data: { burnId: string; senderUid: string; timestamp: string }) => {
+      // Only display if we are actively talking to this sender
+      if (data.senderUid === recipientUid) {
+        printLine(`[SYSTEM]: Incoming Burn Message from ${data.senderUid}. Click to reveal.`, '#ff0', true, data.burnId);
+      }
+    };
+
     socket.on('receive_message', handleReceiveMessage);
     socket.on('chat_wiped', handleChatWiped);
+    socket.on('receive_burn_notice', handleReceiveBurnNotice);
 
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('chat_wiped', handleChatWiped);
+      socket.off('receive_burn_notice', handleReceiveBurnNotice);
     };
   }, [socket, recipientUid, user]);
 
@@ -240,6 +249,28 @@ export default function ChatPage() {
     }
   };
 
+  const revealBurnMessage = async (burnId: string, lineId: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/messages/burn/${burnId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        setLines(prev => prev.map(line => line.id === lineId ? { ...line, text: '[BURN MESSAGE DESTROYED OR EXPIRED]', color: '#f00', isBurn: false } : line));
+        return;
+      }
+      
+      const data = await res.json();
+      setLines(prev => prev.map(line => line.id === lineId ? { ...line, text: `[${data.message.senderUid}]: ${data.message.content}`, color: '#ff0', isBurn: false } : line));
+    } catch (err) {
+      setLines(prev => prev.map(line => line.id === lineId ? { ...line, text: '[BURN MESSAGE ERROR]', color: '#f00', isBurn: false } : line));
+    }
+  };
+
   const processCommand = async (input: string) => {
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -255,9 +286,32 @@ export default function ChatPage() {
         case '/help':
           printLine('AVAILABLE COMMANDS:', '#ff0');
           printLine('  /connect <uid>   - Initiate secure channel with user', '#ff0');
+          printLine('  /burn <msg>      - Send a read-once atomic message', '#ff0');
           printLine('  /clear           - Clear terminal display locally', '#ff0');
           printLine('  /logout          - Terminate identity session', '#ff0');
           printLine('  /whoami          - Display current UID', '#ff0');
+          break;
+        case '/burn':
+          if (!recipientUid) {
+            printLine('[ERROR]: No active connection. Use /connect <uid>', '#f00');
+          } else if (!arg) {
+            printLine('[ERROR]: /burn requires a message payload', '#f00');
+          } else {
+            const payload = parts.slice(1).join(' ');
+            try {
+              const token = await user?.getIdToken();
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+              const res = await fetch(`${apiUrl}/messages/burn`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ recipientUid, content: payload }),
+              });
+              if (!res.ok) throw new Error();
+              printLine(`[SYSTEM]: Burn message dispatched to ${recipientUid}`, '#0ff');
+            } catch {
+              printLine(`[ERROR]: Burn message delivery failed`, '#f00');
+            }
+          }
           break;
         case '/connect':
           if (!arg) {
@@ -383,7 +437,21 @@ export default function ChatPage() {
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem', paddingRight: '1rem' }}>
           {lines.length === 0 && <span style={{ color: '#888' }}>Initializing...</span>}
           {lines.map((line) => (
-            <div key={line.id} style={{ color: line.color, wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}>
+            <div 
+              key={line.id} 
+              style={{ 
+                color: line.color, 
+                wordWrap: 'break-word', 
+                whiteSpace: 'pre-wrap',
+                cursor: line.isBurn ? 'pointer' : 'default',
+                textDecoration: line.isBurn ? 'underline' : 'none'
+              }}
+              onClick={() => {
+                if (line.isBurn && line.burnId) {
+                  revealBurnMessage(line.burnId, line.id);
+                }
+              }}
+            >
               {line.text}
             </div>
           ))}
