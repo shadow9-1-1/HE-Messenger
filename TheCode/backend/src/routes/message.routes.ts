@@ -1,7 +1,7 @@
 import { Router, Response, Request } from 'express';
 import { verifyFirebaseToken, AuthRequest } from '../middleware/auth.middleware';
 import { Room } from '../models/room.model';
-import { getRedis } from '../config/redis';
+import { listPush, listRead } from '../config/redis';
 
 interface RoomParams extends Record<string, string> {
   roomId: string;
@@ -17,8 +17,7 @@ const router = Router();
 router.get('/:roomId', verifyFirebaseToken, async (req: Request<RoomParams>, res: Response) => {
   try {
     const { roomId } = req.params;
-    const redis = getRedis();
-    const rawMessages = await redis.lrange(`messages:${roomId}`, 0, -1);
+    const rawMessages = await listRead(`messages:${roomId}`);
     const messages = rawMessages.map(m => JSON.parse(m));
 
     res.json({ messages });
@@ -48,11 +47,8 @@ router.post('/:roomId', verifyFirebaseToken, async (req: Request<RoomParams> & A
       createdAt: new Date().toISOString(),
     };
 
-    const redis = getRedis();
-    await redis.rpush(`messages:${roomId}`, JSON.stringify(message));
-    
-    // Refresh TTL on the room's message list
-    await redis.expire(`messages:${roomId}`, room.ttlSeconds || 3600);
+    // Push the message to the Redis list and set/update its TTL
+    await listPush(`messages:${roomId}`, JSON.stringify(message), room.ttlSeconds);
 
     res.status(201).json({ message });
   } catch (error) {
