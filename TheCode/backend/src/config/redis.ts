@@ -69,3 +69,28 @@ export async function keyExists(key: string): Promise<boolean> {
 export async function getExpiration(key: string): Promise<number> {
   return await redis.ttl(key);
 }
+
+// ── Conversation Key Management ──────────────────────────────────────────────
+
+/**
+ * Generates a deterministic Redis key for a 1-on-1 private conversation.
+ * 
+ * Naming Convention:
+ * - Prefix: `chat:`
+ * - Suffix: Two user UIDs sorted alphabetically and separated by an underscore (`_`).
+ * 
+ * Example:
+ * If user A has UID "alice123" and user B has UID "bob456", 
+ * the resulting key is always "chat:alice123_bob456" regardless of who initiates.
+ * 
+ * @param uid1 The UID of the first user
+ * @param uid2 The UID of the second user
+ * @returns A deterministic conversation key like `chat:UID1_UID2`
+ */
+export function getConversationKey(uid1: string, uid2: string): string {
+  if (!uid1 || !uid2) {
+    throw new Error('Both UIDs are required to generate a conversation key');
+  }
+  const [sortedUid1, sortedUid2] = [uid1, uid2].sort();
+  return `chat:${sortedUid1}_${sortedUid2}`;
+}
