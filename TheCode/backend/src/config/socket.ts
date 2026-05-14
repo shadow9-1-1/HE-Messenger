@@ -31,6 +31,11 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
   io.on('connection', (socket: Socket) => {
     const user = socket.data.user;
     console.log(`🔌 Socket connected: ${socket.id} (User: ${user?.uid})`);
+    
+    // Automatically join a private room matching the user's UID
+    if (user?.uid) {
+      socket.join(user.uid);
+    }
 
     socket.on('join_room', (roomId: string) => {
       socket.join(roomId);
