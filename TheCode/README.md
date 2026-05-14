@@ -63,12 +63,32 @@ curl http://localhost:5000/health
 
 ## Environment Variables
 
-| File | Purpose |
-|------|---------|
-| `backend/.env.example` | Server port, MongoDB URI, Redis, Firebase Admin keys |
-| `frontend/.env.local.example` | Firebase client keys, API & Socket URLs |
+Secure configuration is required for both the frontend and backend. **Sensitive credentials must never be hardcoded into the source files.**
 
-> **Never commit `.env` or `.env.local` files** — they are git-ignored.
+You must create local `.env` files using the provided templates:
+
+### Backend Configuration (`backend/.env`)
+Copy the template: `cp .env.example .env`
+
+| Variable | Description |
+|----------|-------------|
+| `PORT` & `FRONTEND_URL` | Express server port and CORS origin |
+| `MONGODB_URI` | MongoDB connection string |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Redis connection details |
+| `CONVERSATION_TTL_SECONDS` | Time-to-live for ephemeral Ghost Chats (e.g., `3600`) |
+| `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | Firebase Admin Service Account credentials for auth verification |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` | *(Optional)* Credentials for SMS/MFA if enabled |
+
+### Frontend Configuration (`frontend/.env.local`)
+Copy the template: `cp .env.example .env.local`
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | The HTTP endpoint of the backend (e.g., `http://localhost:5000/api`) |
+| `NEXT_PUBLIC_SOCKET_URL` | The Websocket endpoint of the backend (e.g., `http://localhost:5000`) |
+| `NEXT_PUBLIC_FIREBASE_*` | Your Firebase Client SDK web configuration keys |
+
+> **IMPORTANT**: Never commit `.env` or `.env.local` files to version control. They are securely git-ignored to prevent credential leaks.
 
 ---
 
