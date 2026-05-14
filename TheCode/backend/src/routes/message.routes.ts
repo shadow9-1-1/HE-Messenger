@@ -59,8 +59,8 @@ router.post('/', verifyFirebaseToken, async (req: AuthRequest, res: Response, ne
     const currentTtl = await getExpiration(conversationKey);
 
     // Emit system pulses to both parties
-    emitSystemPulse(senderUid, 'REDIS', `Key updated (TTL: ${currentTtl}s)`);
-    emitSystemPulse(recipientUid, 'REDIS', `Key updated (TTL: ${currentTtl}s)`);
+    emitSystemPulse(senderUid, 'REDIS', `Key created/updated (TTL: ${currentTtl}s)`);
+    emitSystemPulse(recipientUid, 'REDIS', `Key created/updated (TTL: ${currentTtl}s)`);
 
     // Emit to recipient via Socket.IO private room (their UID)
     const io = getIO();

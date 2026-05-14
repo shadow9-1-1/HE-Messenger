@@ -28,9 +28,6 @@ export async function verifyFirebaseToken(
     const decodedToken = await verifyToken(idToken);
     req.user = decodedToken;
     
-    // Emit system pulse (will only arrive if the user already has a live socket)
-    emitSystemPulse(decodedToken.uid, 'AUTH', 'Token verified securely');
-    
     next();
   } catch (error) {
     next(new ApiError(401, 'Unauthorized: Invalid token'));

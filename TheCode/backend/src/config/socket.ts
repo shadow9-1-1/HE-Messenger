@@ -65,6 +65,7 @@ export function initSocketIO(server: HttpServer): SocketIOServer {
       }
       
       // Emit a structured system pulse
+      emitSystemPulse(user.uid, 'AUTH', 'Token verified securely');
       emitSystemPulse(user.uid, 'SOCKET', `Joined private room`);
     }
 
