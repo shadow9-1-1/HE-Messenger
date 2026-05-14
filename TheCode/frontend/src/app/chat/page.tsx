@@ -19,6 +19,12 @@ interface PulseEvent {
   timestamp: string;
 }
 
+interface UserProfile {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+}
+
 export default function ChatPage() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
@@ -26,6 +32,8 @@ export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [lines, setLines] = useState<{ id: string; text: string; color?: string }[]>([]);
   const [pulseLogs, setPulseLogs] = useState<{ id: string; category: string; text: string; color: string }[]>([]);
+  const [contacts, setContacts] = useState<UserProfile[]>([]);
+  const [onlineUids, setOnlineUids] = useState<Set<string>>(new Set());
   const [inputValue, setInputValue] = useState('');
   const [recipientUid, setRecipientUid] = useState<string | null>(null);
   const [ttl, setTtl] = useState<number | null>(null);
@@ -67,7 +75,7 @@ export default function ChatPage() {
 
   const clearScreen = () => {
     setLines([]);
-    printLine('Ghost Chat UI Initialized. Type /help for commands.', '#0ff');
+    printLine('Ghost Chat UI Initialized. Select a contact or type /help.', '#0ff');
   };
 
   // Auth Redirect & Socket Init
@@ -80,44 +88,77 @@ export default function ChatPage() {
 
     printLine(`Authenticating as ${user.uid}...`, '#888');
 
-    user.getIdToken().then((token) => {
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
-      const newSocket = io(socketUrl, {
-        auth: { token },
-      });
-
-      newSocket.on('connect', () => {
-        printLine(`[SYSTEM]: Connected to secure socket.`, '#ff0');
-        printPulse('SOCKET', 'TCP Handshake established', '#ff0');
-      });
-
-      newSocket.on('disconnect', (reason) => {
-        printLine(`[SYSTEM]: Socket disconnected (${reason}).`, '#f00');
-        printPulse('SOCKET', `Disconnected: ${reason}`, '#f00');
-      });
-
-      newSocket.on('system_pulse', (log: PulseEvent | any) => {
-        const category = log.category || log.type?.toUpperCase() || 'SYSTEM';
+    const initializeData = async () => {
+      try {
+        const token = await user.getIdToken();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
         
-        let color = '#888';
-        if (category === 'AUTH') color = '#0ff';
-        if (category === 'SOCKET') color = '#ff0';
-        if (category === 'REDIS') color = '#a020f0';
-        if (category === 'GHOST') color = '#f00';
+        // Fetch Contacts
+        const usersRes = await fetch(`${apiUrl}/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (usersRes.ok) {
+          const { users } = await usersRes.json();
+          setContacts(users);
+        }
 
-        printPulse(category, log.message, color);
+        // Fetch Presence Hydration
+        const presenceRes = await fetch(`${apiUrl}/presence`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (presenceRes.ok) {
+          const { onlineUids } = await presenceRes.json();
+          setOnlineUids(new Set(onlineUids));
+        }
+
+        // Init Socket
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
+        const newSocket = io(socketUrl, { auth: { token } });
+
+        newSocket.on('connect', () => {
+          printLine(`[SYSTEM]: Connected to secure socket.`, '#ff0');
+          printPulse('SOCKET', 'TCP Handshake established', '#ff0');
+        });
+
+        newSocket.on('disconnect', (reason) => {
+          printLine(`[SYSTEM]: Socket disconnected (${reason}).`, '#f00');
+          printPulse('SOCKET', `Disconnected: ${reason}`, '#f00');
+        });
+
+        newSocket.on('system_pulse', (log: PulseEvent | any) => {
+          const category = log.category || log.type?.toUpperCase() || 'SYSTEM';
+          let color = '#888';
+          if (category === 'AUTH') color = '#0ff';
+          if (category === 'SOCKET') color = '#ff0';
+          if (category === 'REDIS') color = '#a020f0';
+          if (category === 'GHOST') color = '#f00';
+          printPulse(category, log.message, color);
+        });
+
+        newSocket.on('presence_update', (data: { uid: string; status: string }) => {
+          setOnlineUids(prev => {
+            const next = new Set(prev);
+            if (data.status === 'online') next.add(data.uid);
+            else next.delete(data.uid);
+            return next;
+          });
+          printPulse('PRESENCE', `User ${data.uid} is now ${data.status}`, data.status === 'online' ? '#0f0' : '#f00');
+        });
+
+        setSocket(newSocket);
+      } catch (error) {
+        console.error('Initialization failed', error);
+      }
+    };
+
+    initializeData();
+
+    return () => {
+      setSocket((prev) => {
+        prev?.disconnect();
+        return null;
       });
-
-      newSocket.on('presence_update', (data: { uid: string; status: string }) => {
-        printPulse('PRESENCE', `User ${data.uid} is now ${data.status}`, data.status === 'online' ? '#0f0' : '#f00');
-      });
-
-      setSocket(newSocket);
-
-      return () => {
-        newSocket.disconnect();
-      };
-    });
+    };
   }, [user, loading, router]);
 
   // Setup Chat specific socket listeners that depend on recipientUid
@@ -270,7 +311,69 @@ export default function ChatPage() {
       className="terminal-layout"
       onClick={() => inputRef.current?.focus()}
     >
-      {/* Ghost Chat Pane (Left) */}
+      {/* Contact List Pane (Left) */}
+      <div className="contact-pane">
+        <div style={{ borderBottom: '1px solid #333', paddingBottom: '0.5rem', marginBottom: '1rem', color: '#888', fontWeight: 'bold' }}>
+          <span>/// DIRECTORIES</span>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem' }}>
+          {contacts.length === 0 && <span style={{ color: '#555' }}>Scanning network...</span>}
+          {contacts.map((contact) => {
+            const isOnline = onlineUids.has(contact.uid);
+            const isSelected = recipientUid === contact.uid;
+            return (
+              <div
+                key={contact.uid}
+                onClick={async () => {
+                  setRecipientUid(contact.uid);
+                  await fetchHistory(contact.uid);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  cursor: 'pointer',
+                  padding: '0.5rem',
+                  backgroundColor: isSelected ? '#1a1a1a' : 'transparent',
+                  border: isSelected ? '1px solid #333' : '1px solid transparent',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#1a1a1a' : '#111')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#1a1a1a' : 'transparent')}
+              >
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    backgroundColor: '#333',
+                    backgroundImage: contact.photoURL ? `url(${contact.photoURL})` : 'none',
+                    backgroundSize: 'cover',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    color: '#fff',
+                    flexShrink: 0,
+                  }}
+                >
+                  {!contact.photoURL && contact.displayName.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <span style={{ color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                    {contact.displayName}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: isOnline ? '#0f0' : '#555' }}>
+                    {isOnline ? '[ONLINE]' : '[OFFLINE]'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Ghost Chat Pane (Middle) */}
       <div className="ghost-pane">
         <div style={{ borderBottom: '1px solid #333', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
           <span>HE-OS v1.0.0 [Terminal Mode]</span>

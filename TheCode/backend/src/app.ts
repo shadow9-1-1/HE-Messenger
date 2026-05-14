@@ -16,6 +16,7 @@ import authRoutes from './routes/auth.routes';
 import messageRoutes from './routes/message.routes';
 import roomRoutes from './routes/room.routes';
 import presenceRoutes from './routes/presence.routes';
+import userRoutes from './routes/user.routes';
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/presence', presenceRoutes);
+app.use('/api/users', userRoutes);
 
 // ── Health Check ───────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
