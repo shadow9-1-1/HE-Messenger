@@ -121,7 +121,12 @@ router.post('/burn', verifyFirebaseToken, requireMfa, async (req: AuthRequest, r
 // GET /api/messages/burn/:burnId — consume a read-once message
 router.get('/burn/:burnId', verifyFirebaseToken, requireMfa, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { burnId } = req.params;
+    const burnIdParam = req.params.burnId;
+    const burnId = Array.isArray(burnIdParam) ? burnIdParam[0] : burnIdParam;
+
+    if (!burnId || typeof burnId !== 'string' || !burnId.trim()) {
+      throw new ApiError(400, 'Invalid request parameters', { burnId: 'burnId must be a non-empty string' });
+    }
     
     // Attempt atomic fetch and delete
     const rawMessage = await consumeBurnMessage(burnId);
